@@ -104,5 +104,21 @@ def temperature(vel: np.ndarray, removed_com: bool = True) -> float:
     return (2.0 * kinetic_energy(vel)) / dof
 
 # ------------------------- Velocity–Verlet + periodic boundaries -------------------
+def apply_pbc(positions: np.ndarray, box: float) -> None:
+    """Wrap positions into [0, L). In-place."""
+    positions[:] = positions % box
 
-
+def velocity_verlet(positions, velocities, forces, box, dt, rc=2.5):
+    """
+    One Velocity–Verlet step. mass=1. Returns (positions, velocities, forces, U).
+    """
+    # half kick
+    velocities += 0.5 * dt * forces
+    # drift
+    positions += dt * velocities
+    apply_pbc(positions, box)
+    # new forces
+    new_forces, U = compute_forces(positions, box, rc)
+    # half kick
+    velocities += 0.5 * dt * new_forces
+    return positions, velocities, new_forces, U
