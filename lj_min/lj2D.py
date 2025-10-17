@@ -56,7 +56,7 @@ def lj_pair_energy_force(dr: np.ndarray, box: float, rc: float = 2.5):
 #     print("Force at rmin ~ 0  :", F)
 #-------------------------------------------------------------------------------------
     
-# Initialization of positions & velocities
+# -------------------Initialization of positions & velocities-------------------------
 def init_positions(N: int, box: float) -> np.ndarray:
     """Plcing N particles on a square lattice inside a box of given size."""
     n_side = int(np.ceil(np.sqrt(N)))
@@ -79,3 +79,30 @@ def init_velocities(N: int, T0: float, rng: np.random.Generator) -> np.ndarray:
     T_current = (2.0 * K) / dof         # current temperature, Using equipartition theorem: K = (dof/2) * T
     v *= np.sqrt(T0 / T_current)        # rescale to desired T0
     return v
+
+# --- -----------------------Force and Energy Computation -----------------------
+def compute_forces(positions: np.ndarray, box: float, rc: float = 2.5):
+    """Compute total forces and potential energy via pairwise LJ with cutoff."""
+    N = positions.shape[0]
+    forces = np.zeros_like(positions)
+    U_total = 0.0
+    for i in range(N - 1):
+        for j in range(i + 1, N):
+            dr = positions[i] - positions[j]
+            U_ij, F_ij = lj_pair_energy_force(dr, box, rc)
+            U_total += U_ij
+            forces[i] += F_ij
+            forces[j] -= F_ij
+    return forces, U_total
+
+def kinetic_energy(vel: np.ndarray) -> float:
+    return 0.5 * float(np.sum(vel * vel))
+
+def temperature(vel: np.ndarray, removed_com: bool = True) -> float:
+    N = vel.shape[0]
+    dof = 2 * N - (2 if removed_com else 0)
+    return (2.0 * kinetic_energy(vel)) / dof
+
+# ------------------------- Velocity–Verlet + periodic boundaries -------------------
+
+
