@@ -108,6 +108,7 @@ def apply_pbc(positions: np.ndarray, box: float) -> None:
     """Wrap positions into [0, L). In-place."""
     positions[:] = positions % box
 
+# Velocity-verlet algorithm: to compute Newtonian dynamics numerically, i.e., conservation of energy
 def velocity_verlet(positions, velocities, forces, box, dt, rc=2.5):
     """
     One Velocity–Verlet step. mass=1. Returns (positions, velocities, forces, U).
@@ -122,3 +123,35 @@ def velocity_verlet(positions, velocities, forces, box, dt, rc=2.5):
     # half kick
     velocities += 0.5 * dt * new_forces
     return positions, velocities, new_forces, U
+
+# a tiny driver to run and inspect energy/temperature
+def run_md(
+    N=36, rho=0.7, T0=1.0, dt=0.005, nsteps=2000, rc=2.5, seed=1234, log_interval=100
+):
+    """
+    Minimal MD loop in reduced units (m=sigma=epsilon=kB=1).
+    Prints energy and T every log_interval steps.
+    """
+    box = np.sqrt(N / rho)
+    rng = np.random.default_rng(seed)
+    pos = init_positions(N, box)
+    vel = init_velocities(N, T0, rng)
+    forces, U = compute_forces(pos, box, rc)
+
+    print(f"# N={N} rho={rho:.3f} box={box:.5f} T0={T0} dt={dt} rc={rc}")
+    print("# step      E_tot         E_pot         E_kin         T_inst")
+    for step in range(nsteps + 1):
+        K = kinetic_energy(vel)
+        T = temperature(vel, removed_com=True)
+        E_tot = U + K
+        if step % log_interval == 0:
+            print(f"{step:6d}  {E_tot:12.6f}  {U:12.6f}  {K:12.6f}  {T:10.6f}")
+
+        if step == nsteps:
+            break
+        pos, vel, forces, U = velocity_verlet(pos, vel, forces, box, dt, rc)
+
+    return pos, vel, box
+
+if __name__ == "__main__":
+    run_md()
