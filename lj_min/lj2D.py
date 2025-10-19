@@ -106,7 +106,7 @@ def temperature(vel: np.ndarray, removed_com: bool = True) -> float:
 # ------------------------- Velocity–Verlet + periodic boundaries -------------------
 def apply_pbc(positions: np.ndarray, box: float) -> None:
     """Wrap positions into [0, L). In-place."""
-    positions[:] = positions % box
+    positions[:] = positions % box # the modulus operator (%) gives the remainder after division — but when used with NumPy arrays, it works element-wise.
 
 # Velocity-verlet algorithm: to compute Newtonian dynamics numerically, i.e., conservation of energy
 def velocity_verlet(positions, velocities, forces, box, dt, rc=2.5):
@@ -123,33 +123,61 @@ def velocity_verlet(positions, velocities, forces, box, dt, rc=2.5):
     # half kick
     velocities += 0.5 * dt * new_forces
     return positions, velocities, new_forces, U
+# -------------------------------------------------------------------------------
 
-# a tiny driver to run and inspect energy/temperature
+#------------------------- xyz trazectory output ---------------------
+def write_xyz(positions, box, step, filename="traj.xyz", clear=False): # If clear=True, truncate file first (use at step==0)
+    """Appending positions to an XYZ file"""
+    if clear:
+        open(filename, "w").close()
+    N = positions.shape[0]
+    with open(filename, "a") as f:
+        f.write(f"{N}\nstep {step} box {box: .6f}\n")
+        for (x, y) in positions:
+            f.write(f"Ar{x: .6f} {y: .6f} 0.0\n")
+# -------------------------------------------------------------------------------
+
+# ------------------------- Main MD loop -------------------
+# a tiny driver to run and inspect energy/temperature. Simulate N atoms in a square box, moving and colliding according to LJ forces, for nsteps time steps
 def run_md(
-    N=36, rho=0.7, T0=1.0, dt=0.005, nsteps=2000, rc=2.5, seed=1234, log_interval=100
+    N=36, rho=0.8, T0=1.0, dt=0.005, nsteps=2000, rc=2.5, seed=1234,
+    log_interval=100, xyz_interval=10, xyz_file="traj.xyz"
 ):
     """
     Minimal MD loop in reduced units (m=sigma=epsilon=kB=1).
-    Prints energy and T every log_interval steps.
+    Prints energy/T and writes an XYZ trajectory (if xyz_interval>0).
     """
+    # Setup & Initialization
     box = np.sqrt(N / rho)
     rng = np.random.default_rng(seed)
     pos = init_positions(N, box)
     vel = init_velocities(N, T0, rng)
     forces, U = compute_forces(pos, box, rc)
-
+    
+    # Simulation parameters printout
     print(f"# N={N} rho={rho:.3f} box={box:.5f} T0={T0} dt={dt} rc={rc}")
     print("# step      E_tot         E_pot         E_kin         T_inst")
-    for step in range(nsteps + 1):
+    
+    # Initial XYZ write
+    if xyz_interval and xyz_interval > 0:
+        write_xyz(pos % box, box, step=0, filename=xyz_file, clear=True) # clear=True means overwrite the file (start fresh).
+        
+    # Main MD loop
+    for step in range(1, nsteps + 1):
+        # Compute instantaneous quantities
         K = kinetic_energy(vel)
         T = temperature(vel, removed_com=True)
         E_tot = U + K
         if step % log_interval == 0:
             print(f"{step:6d}  {E_tot:12.6f}  {U:12.6f}  {K:12.6f}  {T:10.6f}")
-
-        if step == nsteps:
-            break
+        
+        # Integrate one step of motion (Moves the system forward by dt using the Velocity–Verlet algorithm. half-kick, drift, compute new forces, half-kick again)
         pos, vel, forces, U = velocity_verlet(pos, vel, forces, box, dt, rc)
+        
+        # Write XYZ frames periodically
+        if xyz_interval and (step % xyz_interval == 0):
+            # positions are wrapped inside velocity_verlet -> safe to write
+            write_xyz(pos, box, step=step, filename=xyz_file, clear=False) # clear=False means append the new frame, so you build a trajectory.
 
     return pos, vel, box
 
