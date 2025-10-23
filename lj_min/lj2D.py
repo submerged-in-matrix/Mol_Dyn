@@ -137,10 +137,53 @@ def write_xyz(positions, box, step, filename="traj.xyz", clear=False): # If clea
             f.write(f"Ar{x: .6f} {y: .6f} 0.0\n")
 # -------------------------------------------------------------------------------
 
+#-----------------------------Simple `Radial Distribution Function` (RDF) ------------------------
+def compute_gr(positions: np.ndarray, box: float, dr: float = 0.02):
+    """"For 2D: normalized by the shell area (2πr dr) and density (N/A). Computes a single-frame 2D RDF, denoted as g(r).
+    Returns (r_centers, g_r). Uses minimum-image conventio
+    """
+    N = positions.shape[0]
+    rho = N / (box * box)                   # number density
+    r_max = 0.5 * box                       # max distance in PBC
+    nbins = int(np.floor(r_max / dr))       # number of bins
+    counts = np.zeros(nbins, dtype=float)
+    
+    ## Accumulate pair distances, i.e., histogram of pair distances by Looping over all unique pairs
+    for i in range(N - 1):
+        for j in range(i+1, N):
+            dr_vec = minimum_image(positions[i] - positions[j], box)
+            r = np.sqrt(np.dot(dr_vec, dr_vec))
+            if r >= r_max:
+                continue
+            bin_idx = int(np.floor(r / dr))
+            if 0 <= bin_idx < nbins:
+                counts[bin_idx] += 2.0              # each pair counts for both i-j and j-i
+    ## bin centers & normalization set-up
+    r_edges = np.linspace(0.0, nbins * dr, nbins + 1)
+    r_centers = 0.5 * (r_edges[:-1] + r_edges[1:])
+    shell_areas = 2.0 * math.pi * r_centers * dr    # area of each shell
+    ideal_counts = shell_areas * rho * N            # expected counts in ideal gas
+    
+    # Normalize to get g(r)
+    with np.errstate(divide='ignore', invalid = 'ignore'): # np.errstate is used to suppress warnings for division by zero and invalid operations
+        g_r = counts / ideal_counts
+        g_r = np.nan_to_num(g_r)                    # convert NaNs to zero (occurs if ideal_counts is zero)
+    
+    return r_centers, g_r
+
+def save_gr_csv(r:np.ndarray, g: np.ndarray, filename = "gr.csv"):
+    """Save RDF g(r) to a CSV file."""
+    with open(filename, "w") as f:
+        f.write("r, g(r)\n")
+        for ri, gi in zip(r, g):
+            f.write(f"{ri: .6f}, {gi: .6f}\n")
+    
+                
+    
 # ------------------------- Main MD loop -------------------
 # a tiny driver to run and inspect energy/temperature. Simulate N atoms in a square box, moving and colliding according to LJ forces, for nsteps time steps
 def run_md(
-    N=36, rho=0.8, T0=1.0, dt=0.005, nsteps=2000, rc=2.5, seed=1234,
+    N=36, rho=0.8, T0=1.0, dt=0.005, nsteps=4000, rc=2.5, seed=1234,
     log_interval=100, xyz_interval=10, xyz_file="traj.xyz"
 ):
     """
@@ -182,4 +225,7 @@ def run_md(
     return pos, vel, box
 
 if __name__ == "__main__":
-    run_md()
+    pos, vel, box = run_md(nsteps=4000, xyz_interval=10)
+    r, g = compute_gr(pos, box, dr=0.02)
+    save_gr_csv(r, g, filename="gr.csv")
+    print("Saved traj.xyz and gr.csv")
