@@ -1,0 +1,57 @@
+# 2D Lennard-Jones (reduced units) in LAMMPS (the exact mirror of my python lj python simulation script 'lj2d.py')
+units           lj
+dimension       2
+atom_style      atomic         # Simple atoms (no bonds, charges, etc.) >> my positions array 
+boundary        p p p          # 2D -> z is ignored >> my apply_pbc() and minimum_image()
+
+# ---------- parameters (mirror Python defaults) ----------
+variable        N       equal   36
+variable        rho     equal   0.8
+variable        L       equal   sqrt(${N}/${rho})   # box length
+variable        n       equal   sqrt(${N})          # assumes N is a perfect square (e.g., 36 -> 6)
+variable        a       equal   ${L}/${n}           # lattice spacing, a = box / sqrt(N)
+variable        dt      equal   0.005
+variable        rc      equal   2.5
+variable        T0      equal   1.0
+variable        seed    equal   12345
+
+# ---------- simulation cell ----------
+region          box block 0 ${L} 0 ${L} -0.5 0.5 units box
+create_box      1 box
+
+# ---------- atoms on a square lattice (exactly N sites) ----------
+lattice         sq ${a}
+create_atoms    1 box
+
+# Zero total momentum & set temperature
+velocity        all create ${T0} ${seed} mom yes rot no dist gaussian               # Now atoms are "shaken" thermally.
+
+# ---------- interactions ----------
+pair_style      lj/cut ${rc}           # my "lj_pair_energy_force(dr, rc)" 
+pair_modify     shift yes              # shift energy so U(rc)=0 (matching Python implementation)
+pair_coeff      1 1 1.0 1.0 ${rc}      # epsilon=1, sigma=1, rc as above
+
+neighbor        0.3 bin
+neigh_modify    delay 0 every 1 check yes
+
+# ---------- integrator ----------
+timestep        ${dt}
+fix             1 all nve
+
+# ---------- thermo ----------
+thermo          100
+thermo_style    custom step pe ke etotal temp
+
+# ---------- trajectory (XYZ) ----------
+# Dump every 10 steps; Ovito/ASE can open this directly
+dump            dxyz all xyz 10 traj_lammps.xyz
+dump_modify     dxyz sort id
+
+# ---------- radial distribution function ----------
+# 200 bins up to half-box; average over time and write to file
+compute         rdf all rdf 200
+# (c_rdf[1]=g(r) for type1-1; for single-type system, columns will be r,g(r))
+fix             gr all ave/time 10 50 500 c_rdf[*] file gr_lammps.txt mode vector
+
+# ---------- run ----------
+run             4000
