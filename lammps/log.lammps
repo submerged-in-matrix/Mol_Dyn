@@ -1,0 +1,40 @@
+LAMMPS (10 Sep 2025)
+OMP_NUM_THREADS environment is not set. Defaulting to 1 thread.
+  using 1 OpenMP thread(s) per MPI task
+Loaded 1 plugins from C:\Users\sayee\AppData\lammps\LAMMPS 64-bit 10Sep2025\plugins
+# 2D Lennard-Jones (reduced units) in LAMMPS (the exact mirror of my python lj python simulation script 'lj2d.py')
+units           lj
+dimension       2
+atom_style      atomic         # Simple atoms (no bonds, charges, etc.) >> my positions array
+boundary        p p p          # 2D -> z is ignored >> my apply_pbc() and minimum_image()
+
+# ---------- parameters (mirror Python defaults) ----------
+variable        N       equal   36
+variable        rho     equal   0.8
+variable        L       equal   sqrt(${N}/${rho})   # box length
+variable        L       equal   sqrt(36/${rho})   
+variable        L       equal   sqrt(36/0.8)   
+variable        n       equal   sqrt(${N})          # assumes N is a perfect square (e.g., 36 -> 6)
+variable        n       equal   sqrt(36)          
+variable        a       equal   ${L}/${n}           # lattice spacing, a = box / sqrt(N)
+variable        a       equal   6.70820393249937/${n}           
+variable        a       equal   6.70820393249937/6           
+variable        dt      equal   0.005
+variable        rc      equal   2.5
+variable        T0      equal   1.0
+variable        seed    equal   12345
+
+# ---------- simulation cell ----------
+region          box block 0 ${L} 0 ${L} -0.5 0.5 units box
+region          box block 0 6.70820393249937 0 ${L} -0.5 0.5 units box
+region          box block 0 6.70820393249937 0 6.70820393249937 -0.5 0.5 units box
+create_box      1 box
+Created orthogonal box = (0 0 -0.5) to (6.7082039 6.7082039 0.5)
+  1 by 1 by 1 MPI processor grid
+mass            1 1.0
+
+# ---------- atoms on a square lattice (exactly N sites) ----------
+lattice         sq ${a} origin 0.5 0.5 units box
+lattice         sq 1.1180339887499 origin 0.5 0.5 units box
+ERROR: Expected floating point parameter instead of 'units' in input script or data file (src/lattice.cpp:152)
+Last input line: lattice sq ${a} origin 0.5 0.5 units box
