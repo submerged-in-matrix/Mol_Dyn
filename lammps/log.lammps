@@ -34,7 +34,136 @@ Created orthogonal box = (0 0 -0.5) to (6.7082039 6.7082039 0.5)
 mass            1 1.0
 
 # ---------- atoms on a square lattice (exactly N sites) ----------
-lattice         sq ${a} origin 0.5 0.5
-lattice         sq 1.1180339887499 origin 0.5 0.5
-ERROR: Illegal lattice origin command: missing argument(s) (src/lattice.cpp:149)
-Last input line: lattice sq ${a} origin 0.5 0.5
+lattice         sq ${a} origin 0.5 0.5 0.0
+lattice         sq 1.1180339887499 origin 0.5 0.5 0.0
+Lattice spacing in x,y,z = 0.94574161 0.94574161 0.94574161
+create_atoms    1 box
+Created 49 atoms
+  using lattice units in orthogonal box = (0 0 -0.5) to (6.7082039 6.7082039 0.5)
+  create_atoms CPU = 0.001 seconds
+
+# Zero total momentum & set temperature
+velocity        all create ${T0} ${seed} mom yes rot no dist gaussian               # Now atoms are "shaken" thermally.
+velocity        all create 1 ${seed} mom yes rot no dist gaussian               
+velocity        all create 1 12345 mom yes rot no dist gaussian               
+
+# ---------- interactions ----------
+pair_style      lj/cut ${rc}           # my "lj_pair_energy_force(dr, rc)"
+pair_style      lj/cut 2.5           
+pair_modify     shift yes              # shift energy so U(rc)=0 (matching Python implementation)
+pair_coeff      1 1 1.0 1.0 ${rc}      # epsilon=1, sigma=1, rc as above
+pair_coeff      1 1 1.0 1.0 2.5      
+
+neighbor        0.3 bin
+neigh_modify    delay 0 every 1 check yes
+
+# ---------- integrator ----------
+timestep        ${dt}
+timestep        0.005
+fix             1 all nve
+
+# ---------- thermo ----------
+thermo          100
+thermo_style    custom step pe ke etotal temp
+
+# ---------- trajectory (XYZ) ----------
+# Dump every 10 steps; Ovito/ASE can open this directly
+dump            dxyz all xyz 10 traj_lammps.xyz
+dump_modify     dxyz sort id
+
+# ---------- radial distribution function ----------
+# 200 bins up to half-box; average over time and write to file
+compute         rdf all rdf 200
+# (c_rdf[1]=g(r) for type1-1; for single-type system, columns will be r,g(r))
+fix             gr all ave/time 10 50 500 c_rdf[*] file gr_lammps.txt mode vector
+
+# ---------- run ----------
+run             4000
+Generated 0 of 0 mixed pair_coeff terms from geometric mixing rule
+Neighbor list info ...
+  update: every = 1 steps, delay = 0 steps, check = yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 2.8
+  ghost atom cutoff = 2.8
+  binsize = 1.4, bins = 5 5 1
+  2 neighbor lists, perpetual/occasional/extra = 1 1 0
+  (1) pair lj/cut, perpetual
+      attributes: half, newton on
+      pair build: half/bin/atomonly/newton
+      stencil: half/bin/2d
+      bin: standard
+  (2) compute rdf, occasional, copy from (1)
+      attributes: half, newton on
+      pair build: copy
+      stencil: none
+      bin: none
+Per MPI rank memory allocation (min/avg/max) = 3.048 | 3.048 | 3.048 Mbytes
+   Step         PotEng         KinEng         TotEng          Temp     
+         0   2.3927179      0.97959184     3.3723097      1            
+       100   1.2037429      2.1697442      3.373487       2.2149472    
+       200   1.5089388      1.8614388      3.3703775      1.9002188    
+       300   0.99279617     2.3753645      3.3681607      2.4248513    
+       400   1.3300582      2.03743        3.3674882      2.0798764    
+       500   1.1349341      2.2304536      3.3653878      2.2769214    
+       600   1.3619689      2.0123991      3.374368       2.0543241    
+       700   0.90350061     2.4653479      3.3688485      2.5167093    
+       800   0.9682101      2.3993938      3.3676039      2.4493812    
+       900   1.2356551      2.1307397      3.3663949      2.1751302    
+      1000   1.2794153      2.0918586      3.3712739      2.1354389    
+      1100   1.6762096      1.7012694      3.3774791      1.7367125    
+      1200   1.1788966      2.1892863      3.3681829      2.2348964    
+      1300   1.5957841      1.7789985      3.3747826      1.816061     
+      1400   1.0547263      2.3102101      3.3649363      2.3583395    
+      1500   1.2067963      2.1653107      3.372107       2.2104213    
+      1600   1.359051       2.0123985      3.3714494      2.0543234    
+      1700   1.4131878      1.9591261      3.3723139      1.9999412    
+      1800   1.2076598      2.1637009      3.3713607      2.208778     
+      1900   1.3247845      2.0423443      3.3671289      2.0848932    
+      2000   1.2915142      2.0804872      3.3720014      2.1238307    
+      2100   1.341398       2.0212394      3.3626374      2.0633486    
+      2200   1.0949647      2.2716765      3.3666411      2.319003     
+      2300   1.1676976      2.200459       3.3681566      2.2463019    
+      2400   1.2760885      2.0922117      3.3683002      2.1357994    
+      2500   1.3475829      2.01911        3.3666929      2.0611748    
+      2600   1.3646415      2.0080787      3.3727202      2.0499137    
+      2700   1.36069        2.0099202      3.3706102      2.0517936    
+      2800   1.296472       2.0767216      3.3731936      2.1199867    
+      2900   1.6956062      1.6800809      3.3756871      1.7150826    
+      3000   1.2427756      2.1290682      3.3718439      2.1734238    
+      3100   1.0905032      2.2791165      3.3696196      2.3265981    
+      3200   1.1781876      2.1913238      3.3695114      2.2369764    
+      3300   1.575188       1.7984278      3.3736159      1.8358951    
+      3400   1.1334326      2.2381196      3.3715522      2.2847471    
+      3500   1.3643756      2.0066825      3.3710581      2.0484884    
+      3600   1.4337476      1.9373399      3.3710875      1.9777012    
+      3700   1.1409554      2.2286969      3.3696523      2.2751281    
+      3800   1.2589795      2.109249       3.3682285      2.1531917    
+      3900   1.4933937      1.8787957      3.3721894      1.9179373    
+      4000   1.3656236      2.0054037      3.3710272      2.0471829    
+Loop time of 0.118133 on 1 procs for 4000 steps with 49 atoms
+
+Performance: 14627580.778 tau/day, 33860.141 timesteps/s, 1.659 Matom-step/s
+92.6% CPU use with 1 MPI tasks x 1 OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.038061   | 0.038061   | 0.038061   |   0.0 | 32.22
+Neigh   | 0.01136    | 0.01136    | 0.01136    |   0.0 |  9.62
+Comm    | 0.004551   | 0.004551   | 0.004551   |   0.0 |  3.85
+Output  | 0.037592   | 0.037592   | 0.037592   |   0.0 | 31.82
+Modify  | 0.016331   | 0.016331   | 0.016331   |   0.0 | 13.82
+Other   |            | 0.01024    |            |       |  8.67
+
+Nlocal:             49 ave          49 max          49 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:            111 ave         111 max         111 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:            646 ave         646 max         646 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 646
+Ave neighs/atom = 13.183673
+Neighbor list builds = 486
+Dangerous builds = 0
+Total wall time: 0:00:00
